@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>授業時間割</title>
+
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: sans-serif;
+      background: #f5f5f5;
+      color: #222;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 22px;
+    }
+
+    #status {
+      background: white;
+      padding: 15px;
+      border-radius: 10px;
+      margin-bottom: 15px;
+      text-align: center;
+    }
+
+    #debug {
+      background: white;
+      padding: 10px;
+      border-radius: 10px;
+      font-size: 12px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+  </style>
+</head>
+
+<body>
+
+  <h1>授業時間割</h1>
+
+  <div id="status">
+    起動確認中…
+  </div>
+
+  <div id="debug"></div>
+
+<script>
+
+const LIFF_ID = "2011303007-bOJx1b9P";
+
+function debug(message) {
+
+  const box = document.getElementById("debug");
+
+  const now = new Date();
+
+  const time = now.toLocaleTimeString("ja-JP");
+
+  box.textContent +=
+    "[" + time + "] " +
+    message +
+    "\n";
+
+  console.log(message);
+}
+
+
+function status(message) {
+
+  document.getElementById("status").textContent =
+    message;
+
+}
+
+
+async function initLiff() {
+
+  try {
+
+    debug("JavaScript読み込み完了");
+
+    if (typeof liff === "undefined") {
+
+      throw new Error(
+        "LIFF SDKを読み込めませんでした。"
+      );
+
+    }
+
+    debug("LIFF SDK確認OK");
+
+    debug("LIFF初期化開始");
+
+    await Promise.race([
+
+      liff.init({
+        liffId: LIFF_ID
+      }),
+
+      new Promise(function(resolve, reject) {
+
+        setTimeout(function() {
+
+          reject(
+            new Error(
+              "LIFF初期化が30秒経過しても完了しませんでした。"
+            )
+          );
+
+        }, 30000);
+
+      })
+
+    ]);
+
+    debug("LIFF初期化OK");
+
+    debug(
+      "LINEアプリ内：" +
+      String(liff.isInClient())
+    );
+
+    debug(
+      "ログイン状態：" +
+      String(liff.isLoggedIn())
+    );
+
+    status(
+      "LIFF接続成功"
+    );
+
+  } catch (error) {
+
+    console.error(error);
+
+    status(
+      "LIFF接続エラー"
+    );
+
+    debug(
+      "エラー：" +
+      (
+        error && error.message
+          ? error.message
+          : String(error)
+      )
+    );
+
+  }
+
+}
+
+
+initLiff();
+
+</script>
+
+</body>
+</html>
