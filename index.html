@@ -9,156 +9,872 @@
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 
   <style>
+    * {
+      box-sizing: border-box;
+    }
+
     body {
       margin: 0;
-      padding: 20px;
-      font-family: sans-serif;
-      background: #f5f5f5;
-      color: #222;
+      padding: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, "Noto Sans JP",
+                   "Yu Gothic", sans-serif;
+      background: #f5f7f6;
+      color: #333;
+    }
+
+    .container {
+      max-width: 700px;
+      margin: 0 auto;
     }
 
     h1 {
       text-align: center;
-      font-size: 22px;
+      margin: 8px 0 6px;
+      font-size: 24px;
+    }
+
+    .description {
+      text-align: center;
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 15px;
     }
 
     #status {
       background: white;
-      padding: 15px;
       border-radius: 10px;
-      margin-bottom: 15px;
+      padding: 12px;
+      margin-bottom: 12px;
       text-align: center;
+      font-size: 14px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
     }
 
     #debug {
-      background: white;
+      display: none;
+      background: #222;
+      color: #fff;
+      border-radius: 8px;
       padding: 10px;
-      border-radius: 10px;
-      font-size: 12px;
+      margin-bottom: 12px;
+      font-size: 11px;
       white-space: pre-wrap;
-      word-break: break-word;
+      word-break: break-all;
+    }
+
+    .timetable {
+      background: white;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 55px repeat(5, 1fr);
+    }
+
+    .header {
+      background: #e8f4ee;
+      font-weight: bold;
+      text-align: center;
+      padding: 10px 2px;
+      border-right: 1px solid #ddd;
+      border-bottom: 1px solid #ddd;
+    }
+
+    .period {
+      background: #f3f3f3;
+      font-weight: bold;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      border-right: 1px solid #ddd;
+      border-bottom: 1px solid #ddd;
+      min-height: 70px;
+      font-size: 13px;
+    }
+
+    .class-button {
+      border: none;
+      border-right: 1px solid #ddd;
+      border-bottom: 1px solid #ddd;
+      background: white;
+      min-height: 70px;
+      padding: 4px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: 0.15s;
+      color: #333;
+    }
+
+    .class-button:active {
+      transform: scale(0.97);
+    }
+
+    .class-button.selected {
+      background: #dff3e7;
+      font-weight: bold;
+    }
+
+    .check {
+      display: block;
+      font-size: 24px;
+      margin-bottom: 2px;
+    }
+
+    .time {
+      display: block;
+      font-size: 10px;
+      color: #777;
+    }
+
+    #saveButton {
+      width: 100%;
+      margin-top: 16px;
+      padding: 15px;
+      border: none;
+      border-radius: 10px;
+      background: #06c755;
+      color: white;
+      font-size: 17px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    #saveButton:disabled {
+      background: #aaa;
+      cursor: default;
+    }
+
+    .note {
+      margin-top: 12px;
+      text-align: center;
+      font-size: 12px;
+      color: #777;
+      line-height: 1.6;
+    }
+
+    .error {
+      color: #d00;
+      font-weight: bold;
+    }
+
+    .success {
+      color: #008844;
+      font-weight: bold;
     }
   </style>
 </head>
 
 <body>
 
+<div class="container">
+
   <h1>授業時間割</h1>
 
+  <div class="description">
+    リマインドしたい授業をタップしてください
+  </div>
+
   <div id="status">
-    起動確認中…
+    LINE接続中…
   </div>
 
   <div id="debug"></div>
 
+  <div class="timetable">
+    <div class="grid" id="timetableGrid">
+      <!-- JavaScriptで生成 -->
+    </div>
+  </div>
+
+  <button id="saveButton" disabled>
+    LINE接続中…
+  </button>
+
+  <div class="note">
+    選択した授業は、授業終了の5分前にLINEで通知されます。
+  </div>
+
+</div>
+
 <script>
 
-const LIFF_ID = "2011303007-bOJx1b9P";
+  /**************************************************
+   * 設定
+   **************************************************/
 
-function debug(message) {
+  const LIFF_ID = "2011303007-bOJx1b9P";
 
-  const box = document.getElementById("debug");
-
-  const now = new Date();
-
-  const time = now.toLocaleTimeString("ja-JP");
-
-  box.textContent +=
-    "[" + time + "] " +
-    message +
-    "\n";
-
-  console.log(message);
-}
+  const GAS_URL =
+    "https://script.google.com/macros/s/AKfycbyqro4wLhaW8s8D9n9UQVN73ZK4DxJCwQgUrwUZ5uChaW1u7SD_Iyjhid1iN18atd0O/exec";
 
 
-function status(message) {
+  /**************************************************
+   * 授業設定
+   **************************************************/
 
-  document.getElementById("status").textContent =
-    message;
+  const DAYS = ["月", "火", "水", "木", "金"];
 
-}
+  const PERIODS = [1, 2, 3, 4, 5, 6];
+
+  const CLASS_TIMES = {
+    1: {
+      end: "10:40",
+      notify: "10:35"
+    },
+    2: {
+      end: "12:30",
+      notify: "12:25"
+    },
+    3: {
+      end: "15:00",
+      notify: "14:55"
+    },
+    4: {
+      end: "16:50",
+      notify: "16:45"
+    },
+    5: {
+      end: "18:40",
+      notify: "18:35"
+    },
+    6: {
+      end: "20:30",
+      notify: "20:25"
+    }
+  };
 
 
-async function initLiff() {
+  /**************************************************
+   * 状態
+   **************************************************/
 
-  try {
+  let userId = null;
 
-    debug("JavaScript読み込み完了");
+  let selectedClasses = new Set();
 
-    if (typeof liff === "undefined") {
+  let initialized = false;
+
+
+  /**************************************************
+   * デバッグ
+   **************************************************/
+
+  function log(message) {
+
+    console.log(message);
+
+    const debug = document.getElementById("debug");
+
+    if (debug) {
+      debug.textContent += message + "\n";
+    }
+  }
+
+
+  /**************************************************
+   * ステータス表示
+   **************************************************/
+
+  function setStatus(message, type = "") {
+
+    const status = document.getElementById("status");
+
+    status.textContent = message;
+
+    status.className = type;
+  }
+
+
+  /**************************************************
+   * 時間割作成
+   **************************************************/
+
+  function createTimetable() {
+
+    const grid = document.getElementById("timetableGrid");
+
+    grid.innerHTML = "";
+
+    // 左上
+    const empty = document.createElement("div");
+
+    empty.className = "header";
+    empty.textContent = "";
+
+    grid.appendChild(empty);
+
+
+    // 曜日
+    DAYS.forEach(day => {
+
+      const header = document.createElement("div");
+
+      header.className = "header";
+      header.textContent = day + "曜";
+
+      grid.appendChild(header);
+
+    });
+
+
+    // 各時限
+    PERIODS.forEach(period => {
+
+      const periodCell = document.createElement("div");
+
+      periodCell.className = "period";
+
+      periodCell.textContent = period + "限";
+
+      grid.appendChild(periodCell);
+
+
+      DAYS.forEach(day => {
+
+        const button = document.createElement("button");
+
+        button.type = "button";
+
+        button.className = "class-button";
+
+        button.dataset.day = day;
+        button.dataset.period = period;
+
+        const time = CLASS_TIMES[period];
+
+        button.innerHTML =
+          `<span class="check"></span>
+           <span>${day}曜${period}限</span>
+           <span class="time">${time.notify} 通知</span>`;
+
+
+        button.addEventListener("click", function() {
+
+          toggleClass(day, period);
+
+        });
+
+
+        grid.appendChild(button);
+
+      });
+
+    });
+
+  }
+
+
+  /**************************************************
+   * 授業選択切り替え
+   **************************************************/
+
+  function getClassKey(day, period) {
+
+    return day + "_" + period;
+
+  }
+
+
+  function toggleClass(day, period) {
+
+    const key = getClassKey(day, period);
+
+    if (selectedClasses.has(key)) {
+
+      selectedClasses.delete(key);
+
+    } else {
+
+      selectedClasses.add(key);
+
+    }
+
+    updateButtons();
+
+  }
+
+
+  /**************************************************
+   * ボタン表示更新
+   **************************************************/
+
+  function updateButtons() {
+
+    document.querySelectorAll(".class-button").forEach(button => {
+
+      const day = button.dataset.day;
+      const period = button.dataset.period;
+
+      const key = getClassKey(day, period);
+
+      const check = button.querySelector(".check");
+
+      if (selectedClasses.has(key)) {
+
+        button.classList.add("selected");
+
+        check.textContent = "✓";
+
+      } else {
+
+        button.classList.remove("selected");
+
+        check.textContent = "";
+
+      }
+
+    });
+
+  }
+
+
+  /**************************************************
+   * JSONP実行
+   **************************************************/
+
+  function callGasApi(params) {
+
+    return new Promise((resolve, reject) => {
+
+      const callbackName =
+        "gasCallback_" +
+        Date.now() +
+        "_" +
+        Math.floor(Math.random() * 100000);
+
+
+      const script = document.createElement("script");
+
+      const query = new URLSearchParams(params);
+
+      query.set("callback", callbackName);
+
+      script.src = GAS_URL + "?" + query.toString();
+
+
+      let finished = false;
+
+
+      const timeout = setTimeout(() => {
+
+        if (finished) return;
+
+        finished = true;
+
+        cleanup();
+
+        reject(new Error("GAS APIがタイムアウトしました"));
+
+      }, 15000);
+
+
+      window[callbackName] = function(data) {
+
+        if (finished) return;
+
+        finished = true;
+
+        clearTimeout(timeout);
+
+        cleanup();
+
+        resolve(data);
+
+      };
+
+
+      script.onerror = function() {
+
+        if (finished) return;
+
+        finished = true;
+
+        clearTimeout(timeout);
+
+        cleanup();
+
+        reject(new Error("GAS APIへの接続に失敗しました"));
+
+      };
+
+
+      function cleanup() {
+
+        delete window[callbackName];
+
+        if (script.parentNode) {
+          script.parentNode.removeChild(script);
+        }
+
+      }
+
+
+      document.body.appendChild(script);
+
+    });
+
+  }
+
+
+  /**************************************************
+   * 登録済み授業を取得
+   **************************************************/
+
+  async function loadClasses() {
+
+    if (!userId) {
+
+      throw new Error("LINEユーザーIDを取得できませんでした");
+
+    }
+
+
+    log("登録済み授業を取得開始");
+
+
+    const result = await callGasApi({
+
+      action: "getClasses",
+
+      userId: userId
+
+    });
+
+
+    log("GAS getClasses 応答: " + JSON.stringify(result));
+
+
+    if (!result || result.success !== true) {
 
       throw new Error(
-        "LIFF SDKを読み込めませんでした。"
+        result && result.message
+          ? result.message
+          : "授業情報の取得に失敗しました"
       );
 
     }
 
-    debug("LIFF SDK確認OK");
 
-    debug("LIFF初期化開始");
+    selectedClasses.clear();
 
-    await Promise.race([
 
-      liff.init({
-        liffId: LIFF_ID
-      }),
+    const classes = Array.isArray(result.classes)
+      ? result.classes
+      : [];
 
-      new Promise(function(resolve, reject) {
 
-        setTimeout(function() {
+    classes.forEach(item => {
 
-          reject(
-            new Error(
-              "LIFF初期化が30秒経過しても完了しませんでした。"
-            )
-          );
+      if (!item) return;
 
-        }, 30000);
+      const day = item.day || item.曜日;
 
-      })
+      const period = item.period || item.時限;
 
-    ]);
 
-    debug("LIFF初期化OK");
+      if (day && period) {
 
-    debug(
-      "LINEアプリ内：" +
-      String(liff.isInClient())
-    );
+        selectedClasses.add(
+          getClassKey(day, Number(period))
+        );
 
-    debug(
-      "ログイン状態：" +
-      String(liff.isLoggedIn())
-    );
+      }
 
-    status(
-      "LIFF接続成功"
-    );
+    });
 
-  } catch (error) {
 
-    console.error(error);
+    updateButtons();
 
-    status(
-      "LIFF接続エラー"
-    );
 
-    debug(
-      "エラー：" +
-      (
-        error && error.message
-          ? error.message
-          : String(error)
-      )
-    );
+    log("登録済み授業: " + classes.length + "件");
 
   }
 
-}
+
+  /**************************************************
+   * 授業保存
+   **************************************************/
+
+  async function saveClasses() {
+
+    if (!userId) {
+
+      setStatus("LINEユーザー情報を取得できていません", "error");
+
+      return;
+
+    }
 
 
-initLiff();
+    const saveButton =
+      document.getElementById("saveButton");
+
+
+    saveButton.disabled = true;
+
+    saveButton.textContent = "保存中…";
+
+    setStatus("授業を保存しています…");
+
+
+    try {
+
+      const selected = [];
+
+
+      selectedClasses.forEach(key => {
+
+        const parts = key.split("_");
+
+        selected.push({
+
+          day: parts[0],
+
+          period: Number(parts[1])
+
+        });
+
+      });
+
+
+      log(
+        "保存データ: " +
+        JSON.stringify(selected)
+      );
+
+
+      const result = await callGasApi({
+
+        action: "saveClasses",
+
+        userId: userId,
+
+        selected: JSON.stringify(selected)
+
+      });
+
+
+      log(
+        "GAS saveClasses 応答: " +
+        JSON.stringify(result)
+      );
+
+
+      if (!result || result.success !== true) {
+
+        throw new Error(
+          result && result.message
+            ? result.message
+            : "授業の保存に失敗しました"
+        );
+
+      }
+
+
+      setStatus(
+        "授業登録が完了しました！",
+        "success"
+      );
+
+
+      saveButton.textContent = "保存しました";
+
+
+      // 少し待ってからLINEを閉じる
+      setTimeout(() => {
+
+        try {
+
+          if (window.liff && liff.isInClient()) {
+
+            liff.closeWindow();
+
+          }
+
+        } catch (e) {
+
+          log("LIFF終了処理: " + e);
+
+        }
+
+      }, 1200);
+
+
+    } catch (error) {
+
+      console.error(error);
+
+      log(
+        "保存エラー: " +
+        (error.message || error)
+      );
+
+
+      setStatus(
+        "保存に失敗しました: " +
+        (error.message || error),
+        "error"
+      );
+
+
+      saveButton.disabled = false;
+
+      saveButton.textContent = "授業を登録する";
+
+    }
+
+  }
+
+
+  /**************************************************
+   * LIFF初期化
+   **************************************************/
+
+  async function initializeLiff() {
+
+    try {
+
+      log("JavaScript読み込み完了");
+
+      createTimetable();
+
+      log("時間割セル作成完了");
+
+
+      setStatus("LINEに接続しています…");
+
+
+      log("LIFF初期化開始");
+
+
+      await liff.init({
+        liffId: LIFF_ID
+      });
+
+
+      log("liff.init()成功");
+
+
+      if (!liff.isLoggedIn()) {
+
+        log("LINEログインが必要です");
+
+        liff.login();
+
+        return;
+
+      }
+
+
+      log("LINEログイン済み");
+
+
+      const profile = await liff.getProfile();
+
+
+      if (!profile || !profile.userId) {
+
+        throw new Error(
+          "LINEユーザーIDを取得できませんでした"
+        );
+
+      }
+
+
+      userId = profile.userId;
+
+
+      log("LINEユーザーID取得成功");
+
+
+      setStatus("登録済み授業を読み込んでいます…");
+
+
+      await loadClasses();
+
+
+      initialized = true;
+
+
+      setStatus(
+        "登録したい授業を選択してください"
+      );
+
+
+      const saveButton =
+        document.getElementById("saveButton");
+
+
+      saveButton.disabled = false;
+
+      saveButton.textContent = "授業を登録する";
+
+
+      log("初期化完了");
+
+
+    } catch (error) {
+
+      console.error(error);
+
+      log(
+        "初期化エラー: " +
+        (error.message || error)
+      );
+
+
+      setStatus(
+        "接続エラー: " +
+        (error.message || error),
+        "error"
+      );
+
+
+      const saveButton =
+        document.getElementById("saveButton");
+
+
+      saveButton.disabled = true;
+
+      saveButton.textContent = "接続エラー";
+
+    }
+
+  }
+
+
+  /**************************************************
+   * 保存ボタン
+   **************************************************/
+
+  document
+    .getElementById("saveButton")
+    .addEventListener("click", function() {
+
+      if (!initialized) {
+
+        setStatus(
+          "まだ読み込み中です。少し待ってください。",
+          "error"
+        );
+
+        return;
+
+      }
+
+      saveClasses();
+
+    });
+
+
+  /**************************************************
+   * 開始
+   **************************************************/
+
+  initializeLiff();
 
 </script>
 
