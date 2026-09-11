@@ -1,3 +1,4 @@
+```html
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -106,6 +107,11 @@
       cursor: pointer;
       transition: 0.15s;
       color: #333;
+
+      /* マスの中央にチェックを表示 */
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .class-button:active {
@@ -117,16 +123,17 @@
       font-weight: bold;
     }
 
+    /* 未選択時は空白 */
     .check {
       display: block;
-      font-size: 24px;
-      margin-bottom: 2px;
+      font-size: 28px;
+      line-height: 1;
+      margin: 0;
     }
 
+    /* 通知時刻などの文字は表示しない */
     .time {
-      display: block;
-      font-size: 10px;
-      color: #777;
+      display: none;
     }
 
     #saveButton {
@@ -343,12 +350,21 @@
         button.dataset.day = day;
         button.dataset.period = period;
 
-        const time = CLASS_TIMES[period];
+
+        /*
+         * マスの中には
+         *
+         * ・曜日
+         * ・時限
+         * ・通知時刻
+         *
+         * を表示しない。
+         *
+         * 選択時のみ「✓」を表示する。
+         */
 
         button.innerHTML =
-          `<span class="check"></span>
-           <span>${day}曜${period}限</span>
-           <span class="time">${time.notify} 通知</span>`;
+          `<span class="check"></span>`;
 
 
         button.addEventListener("click", function() {
@@ -600,283 +616,5 @@
 
   async function saveClasses() {
 
-    if (!userId) {
-
-      setStatus("LINEユーザー情報を取得できていません", "error");
-
-      return;
-
-    }
-
-
-    const saveButton =
-      document.getElementById("saveButton");
-
-
-    saveButton.disabled = true;
-
-    saveButton.textContent = "保存中…";
-
-    setStatus("授業を保存しています…");
-
-
-    try {
-
-      const selected = [];
-
-
-      selectedClasses.forEach(key => {
-
-        const parts = key.split("_");
-
-        selected.push({
-
-          day: parts[0],
-
-          period: Number(parts[1])
-
-        });
-
-      });
-
-
-      log(
-        "保存データ: " +
-        JSON.stringify(selected)
-      );
-
-
-      const result = await callGasApi({
-
-        action: "saveClasses",
-
-        userId: userId,
-
-        selected: JSON.stringify(selected)
-
-      });
-
-
-      log(
-        "GAS saveClasses 応答: " +
-        JSON.stringify(result)
-      );
-
-
-      if (!result || result.success !== true) {
-
-        throw new Error(
-          result && result.message
-            ? result.message
-            : "授業の保存に失敗しました"
-        );
-
-      }
-
-
-      setStatus(
-        "授業登録が完了しました！",
-        "success"
-      );
-
-
-      saveButton.textContent = "保存しました";
-
-
-      // 少し待ってからLINEを閉じる
-      setTimeout(() => {
-
-        try {
-
-          if (window.liff && liff.isInClient()) {
-
-            liff.closeWindow();
-
-          }
-
-        } catch (e) {
-
-          log("LIFF終了処理: " + e);
-
-        }
-
-      }, 1200);
-
-
-    } catch (error) {
-
-      console.error(error);
-
-      log(
-        "保存エラー: " +
-        (error.message || error)
-      );
-
-
-      setStatus(
-        "保存に失敗しました: " +
-        (error.message || error),
-        "error"
-      );
-
-
-      saveButton.disabled = false;
-
-      saveButton.textContent = "授業を登録する";
-
-    }
-
-  }
-
-
-  /**************************************************
-   * LIFF初期化
-   **************************************************/
-
-  async function initializeLiff() {
-
-    try {
-
-      log("JavaScript読み込み完了");
-
-      createTimetable();
-
-      log("時間割セル作成完了");
-
-
-      setStatus("LINEに接続しています…");
-
-
-      log("LIFF初期化開始");
-
-
-      await liff.init({
-        liffId: LIFF_ID
-      });
-
-
-      log("liff.init()成功");
-
-
-      if (!liff.isLoggedIn()) {
-
-        log("LINEログインが必要です");
-
-        liff.login();
-
-        return;
-
-      }
-
-
-      log("LINEログイン済み");
-
-
-      const profile = await liff.getProfile();
-
-
-      if (!profile || !profile.userId) {
-
-        throw new Error(
-          "LINEユーザーIDを取得できませんでした"
-        );
-
-      }
-
-
-      userId = profile.userId;
-
-
-      log("LINEユーザーID取得成功");
-
-
-      setStatus("登録済み授業を読み込んでいます…");
-
-
-      await loadClasses();
-
-
-      initialized = true;
-
-
-      setStatus(
-        "登録したい授業を選択してください"
-      );
-
-
-      const saveButton =
-        document.getElementById("saveButton");
-
-
-      saveButton.disabled = false;
-
-      saveButton.textContent = "授業を登録する";
-
-
-      log("初期化完了");
-
-
-    } catch (error) {
-
-      console.error(error);
-
-      log(
-        "初期化エラー: " +
-        (error.message || error)
-      );
-
-
-      setStatus(
-        "接続エラー: " +
-        (error.message || error),
-        "error"
-      );
-
-
-      const saveButton =
-        document.getElementById("saveButton");
-
-
-      saveButton.disabled = true;
-
-      saveButton.textContent = "接続エラー";
-
-    }
-
-  }
-
-
-  /**************************************************
-   * 保存ボタン
-   **************************************************/
-
-  document
-    .getElementById("saveButton")
-    .addEventListener("click", function() {
-
-      if (!initialized) {
-
-        setStatus(
-          "まだ読み込み中です。少し待ってください。",
-          "error"
-        );
-
-        return;
-
-      }
-
-      saveClasses();
-
-    });
-
-
-  /**************************************************
-   * 開始
-   **************************************************/
-
-  initializeLiff();
-
-</script>
-
-</body>
-</html>
+    if
+```
